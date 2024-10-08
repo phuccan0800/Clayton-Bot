@@ -2,8 +2,8 @@ const axios = require("axios");
 const fs = require("fs");
 const readline = require("readline");
 const querystring = require("querystring");
-
 const BASE_URL = "https://tonclayton.fun";
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 async function readFileLines(filePath) {
     const fileStream = fs.createReadStream(filePath);
@@ -28,12 +28,8 @@ function createApiClient(initData, proxy) {
     };
 
     if (proxy) {
-        const [protocol, proxyUrl] = proxy.split("://");
-        const [auth, hostPort] = proxyUrl.split("@");
-        const [username, password] = auth.split(":");
-        const [host, port] = hostPort.split(":");
-
-        axiosConfig.proxy = { protocol, host, port, auth: { username, password } };
+        const proxyAgent = new HttpsProxyAgent(proxy);
+        axiosConfig.httpsAgent = proxyAgent;
     }
 
     return axios.create(axiosConfig);
@@ -48,7 +44,7 @@ function log(message, color = "white") {
         cyan: "\x1b[36m",
         white: "\x1b[37m",
     };
-    console.log(colors[color] +`[${timestamp}] ` + message + "\x1b[0m");
+    console.log(colors[color] + `[${timestamp}] ` + message + "\x1b[0m");
 }
 
 async function safeRequest(api, method, url, data = {}, retries = 3) {
@@ -79,6 +75,7 @@ async function safeRequest(api, method, url, data = {}, retries = 3) {
                 log(`Retrying request... Attempt ${attempt + 1}`, "white");
                 await wait(5000);
             } else {
+                console.log(error.response);
                 log(`Request failed: ${error.message}`, "red");
                 throw error;
             }
@@ -115,7 +112,7 @@ async function playGameWithProgress(api, gameName) {
 }
 
 async function processAccount(initData, firstName, proxy) {
-    try {  
+    try {
         const api = createApiClient(initData, proxy);
         let loginData = await apiFunctions.login(api);
         log(`[Tài Khoản: ${firstName}] Đăng nhập thành công !`, "green");
@@ -194,7 +191,7 @@ async function main() {
     const promies = [];
     for (let i = 0; i < tokens.length; i++) {
         const initData = tokens[i];
-        let proxy = proxies[i] || null;
+        let proxy = `http://${proxies[i].split(':')[2]}:${proxies[i].split(':')[3]}@${proxies[i].split(':')[0]}:${proxies[i].split(':')[1]}` || null;
         const firstName = JSON.parse(decodeURIComponent(querystring.parse(initData).user))?.first_name;
         promies.push(processAccount(initData, firstName, proxy));
     }
